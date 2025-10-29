@@ -30,7 +30,7 @@ jobs:
 
   # (2) SAST - Snyk Code (fallar si Medium+)
   sast_snyk_code:
-    name:  SAST - Snyk Code (fail on Medium+)
+    name: 2) SAST - Snyk Code 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (clonar repositorio)
@@ -48,28 +48,46 @@ jobs:
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@v1
 
-      # Ejecuta Snyk Code y genera SARIF.
-      # Si hay hallazgos >= medium el comando devuelve exit != 0; no bloqueamos aún para poder subir el SARIF.
+      # Ejecutamos Snyk Code. No fallamos aquí para poder procesar y subir el SARIF condicionalmente.
       - name: Run Snyk Code (SAST) -> SARIF
+        id: snykcode
         run: |
-          snyk code test --severity-threshold=medium --sarif-file-output=snyk-code.sarif || echo "Snyk Code exit != 0 (findings >= medium)"
-          # Si por cualquier motivo el archivo no existe, crea uno vacío para no romper el upload
-          if [ ! -f snyk-code.sarif ]; then
-            echo '{"version":"2.1.0","runs":[]}' > snyk-code.sarif
+          set -o pipefail
+          # Ejecuta Snyk Code y genera SARIF; si hay Critical saldrá con exit!=0, pero no paramos aún
+          snyk code test --severity-threshold=medium --sarif-file-output=snyk-code.sarif || true
+
+          # Determina si el SARIF existe y tiene 'runs'
+          if [ -f snyk-code.sarif ]; then
+            has_runs=$(jq 'has("runs") and (.runs | length > 0)' snyk-code.sarif 2>/dev/null || echo false)
+          else
+            has_runs=false
           fi
+          echo "has_runs=${has_runs}" >> "$GITHUB_OUTPUT"
+
+          # Cuenta findings (resultados) si hay runs; si no hay, cuenta=0
+          if [ "${has_runs}" = "true" ]; then
+            count=$(jq '[.runs[].results[]] | length' snyk-code.sarif 2>/dev/null || echo 0)
+          else
+            count=0
+          fi
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+
+          echo "SAST SARIF has_runs=${has_runs} findings=${count}"
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
+      # Subimos SARIF solo si Snyk generó al menos un 'run' (SARIF válido para Code Scanning)
       - name: Upload SARIF (Snyk Code)
+        if: steps.snykcode.outputs.has_runs == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
           category: snyk-code
 
-      # Corta el pipeline si hay hallazgos (>= medium)
-      - name: Fail if SAST findings (>= medium)
+      # Fallamos el job si hay hallazgos (>= critical)
+      - name: Fail if SAST findings (>= critical)
         run: |
-          count=$(jq '[.runs[].results[]] | length' snyk-code.sarif 2>/dev/null || echo 0)
+          count='${{ steps.snykcode.outputs.count }}'
           echo "SAST findings: ${count}"
           if [ "${count}" -gt 0 ]; then
             echo "❌ SAST FAIL: issues with severity >= medium found"
