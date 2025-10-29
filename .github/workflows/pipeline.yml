@@ -1,34 +1,16 @@
-name: DevSecOps Lab - Snyk only
+name: DevSecOps Pipeline - Snyk
 
 on:
   push:
-    branches: [ "**" ]
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
-
-concurrency:
-  group: snyk-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  NODE_VERSION: '19'
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  # (1) Clonación explícita del repo
-  clone_repository:
-    name: 1) Clonar repositorio
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-  # (2) SAST - Snyk Code (fallar si Medium+)
+  # 1️⃣ SAST
   sast_snyk_code:
     name: 2) SAST - Snyk Code (fail on Medium+)
     runs-on: ubuntu-latest
@@ -36,38 +18,40 @@ jobs:
       - name: Checkout (clonar repositorio)
         uses: actions/checkout@v4
 
-      - name: Setup Node (opcional para Next.js/TS)
+      - name: Setup Node (para Next.js/TS)
         uses: actions/setup-node@v4
         with:
           node-version: '19'
           cache: 'npm'
 
-      - name: Install deps (si aplica)
+      - name: Install deps
         run: npm ci || true
 
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@v1
 
-      # Este comando devuelve exit code != 0 si hay issues >= medium → el job FALLA.
       - name: Run Snyk Code (SAST) - fail on Medium+
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --severity-threshold=medium
 
+  # 2️⃣ SCA (solo si SAST terminó)
   sca_snyk:
-    name:  SCA - Snyk Open Source (fail on Medium+)
+    name: 3) SCA - Snyk Open Source (fail on Medium+)
     runs-on: ubuntu-latest
+    needs: [sast_snyk_code]
+    if: ${{ always() }}   # corre aunque el anterior falle
     steps:
-      - name: Checkout (clonar repositorio)
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node (para resolver dependencias)
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '19'
           cache: 'npm'
 
-      - name: Install deps (si aplica)
+      - name: Install deps
         run: npm ci || true
 
       - name: Setup Snyk CLI
@@ -76,24 +60,36 @@ jobs:
       - name: Run Snyk Open Source (SCA) - fail on Medium+
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --severity-threshold=medium --all-projects    
+        run: snyk test --severity-threshold=medium --all-projects
 
+  # 3️⃣ Image Security (siempre se ejecuta)
   image_security_snyk:
     name: 5) Image Security - Snyk Container (fail on Medium+)
     runs-on: ubuntu-latest
-    needs: [sast_snyk_code, sca_snyk]
-    if: ${{ always() }}   # <— clave: corre aunque los needs hayan fallado
+    needs: [sca_snyk]
+    if: ${{ always() }}   # <— se ejecuta aunque los previos fallen
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           load: true
           tags: app:${{ github.sha }}
-      - uses: snyk/actions/setup@v1
+
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@v1
+
       - name: Snyk Container test - fail on Medium+
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test app:${{ github.sha }} --file=Dockerfile --severity-threshold=medium
+        run: |
+          snyk container test app:${{ github.sha }} \
+            --file=Dockerfile \
+            --severity-threshold=medium
