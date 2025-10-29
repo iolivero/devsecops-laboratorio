@@ -30,42 +30,48 @@ jobs:
 
   # (2) SAST - Snyk Code (fallar si Medium+)
   sast_snyk_code:
-    name: 2) SAST - Snyk Code 
+    name:  SAST - Snyk Code (fail on Medium+)
     runs-on: ubuntu-latest
-    needs: [clone_repository]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (clonar repositorio)
+        uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node (opcional para Next.js/TS)
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '19'
           cache: 'npm'
 
       - name: Install deps (si aplica)
-        run: |
-          npm ci || true
+        run: npm ci || true
 
-      - name: Setup Snyk
+      - name: Setup Snyk CLI
         uses: snyk/actions/setup@v1
 
-      # Importante: usamos || true para permitir subir SARIF y luego fallamos nosotros
+      # Ejecuta Snyk Code y genera SARIF.
+      # Si hay hallazgos >= medium el comando devuelve exit != 0; no bloqueamos aún para poder subir el SARIF.
       - name: Run Snyk Code (SAST) -> SARIF
-        run: snyk code test --severity-threshold=critical --sarif-file-output=snyk-code.sarif || true
+        run: |
+          snyk code test --severity-threshold=medium --sarif-file-output=snyk-code.sarif || echo "Snyk Code exit != 0 (findings >= medium)"
+          # Si por cualquier motivo el archivo no existe, crea uno vacío para no romper el upload
+          if [ ! -f snyk-code.sarif ]; then
+            echo '{"version":"2.1.0","runs":[]}' > snyk-code.sarif
+          fi
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Upload SARIF (Snyk Code)
-        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
+          category: snyk-code
 
+      # Corta el pipeline si hay hallazgos (>= medium)
       - name: Fail if SAST findings (>= medium)
         run: |
           count=$(jq '[.runs[].results[]] | length' snyk-code.sarif 2>/dev/null || echo 0)
           echo "SAST findings: ${count}"
           if [ "${count}" -gt 0 ]; then
-            echo "❌ SAST FAIL: issues with severity >= crtitical found"
+            echo "❌ SAST FAIL: issues with severity >= medium found"
             exit 1
-          fi
+          fi 
