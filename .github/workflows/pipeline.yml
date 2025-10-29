@@ -53,3 +53,27 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --severity-threshold=medium
+
+  sca_snyk:
+    name:  SCA - Snyk Open Source (fail on Medium+)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (clonar repositorio)
+        uses: actions/checkout@v4
+
+      - name: Setup Node (para resolver dependencias)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '19'
+          cache: 'npm'
+
+      - name: Install deps (si aplica)
+        run: npm ci || true
+
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@v1
+
+      - name: Run Snyk Open Source (SCA) - fail on Medium+
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --severity-threshold=medium --all-projects    
