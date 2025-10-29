@@ -47,7 +47,7 @@ jobs:
           npm ci || true
 
       - name: Setup Snyk
-        uses: snyk/actions/setup@v4
+        uses: snyk/actions/setup@v1
 
       # Importante: usamos || true para permitir subir SARIF y luego fallamos nosotros
       - name: Run Snyk Code (SAST) -> SARIF
