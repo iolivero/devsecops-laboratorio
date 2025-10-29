@@ -2,7 +2,7 @@ name: DevSecOps Lab - Snyk only
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "ivan_olivero_tarea" ]
   pull_request:
   workflow_dispatch:
 
