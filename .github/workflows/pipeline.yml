@@ -12,7 +12,7 @@ permissions:
 jobs:
   # 1️⃣ SAST
   sast_snyk_code:
-    name: 2) SAST - Snyk Code 
+    name: SAST - Snyk Code 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (clonar repositorio)
@@ -64,7 +64,7 @@ jobs:
 
   # 3️⃣ Image Security 
   image_security_snyk:
-    name: 5) Image Security - Snyk Container 
+    name: Image Security - Snyk Container 
     runs-on: ubuntu-latest
     needs: [sca_snyk]
     if: ${{ always() }}   
