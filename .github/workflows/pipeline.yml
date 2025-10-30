@@ -12,7 +12,7 @@ permissions:
 jobs:
   # 1️⃣ SAST
   sast_snyk_code:
-    name: 2) SAST - Snyk Code (fail on Medium+)
+    name: 2) SAST - Snyk Code 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (clonar repositorio)
@@ -30,17 +30,17 @@ jobs:
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@v1
 
-      - name: Run Snyk Code (SAST) - fail on Medium+
+      - name: Run Snyk Code (SAST) - falla cuando encuentra Medium+
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --severity-threshold=medium
 
-  # 2️⃣ SCA (solo si SAST terminó)
+  # 2️⃣ SCA 
   sca_snyk:
-    name: 3) SCA - Snyk Open Source (fail on Medium+)
+    name: 3) SCA - Snyk Open Source 
     runs-on: ubuntu-latest
     needs: [sast_snyk_code]
-    if: ${{ always() }}   # corre aunque el anterior falle
+    if: ${{ always() }}   
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,17 +57,17 @@ jobs:
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@v1
 
-      - name: Run Snyk Open Source (SCA) - fail on Medium+
+      - name: Run Snyk Open Source (SCA)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --severity-threshold=medium --all-projects
 
-  # 3️⃣ Image Security (siempre se ejecuta)
+  # 3️⃣ Image Security 
   image_security_snyk:
-    name: 5) Image Security - Snyk Container (fail on Medium+)
+    name: 5) Image Security - Snyk Container 
     runs-on: ubuntu-latest
     needs: [sca_snyk]
-    if: ${{ always() }}   # <— se ejecuta aunque los previos fallen
+    if: ${{ always() }}   
     steps:
       - name: Checkout
         uses: actions/checkout@v4
