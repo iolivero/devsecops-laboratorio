@@ -37,7 +37,7 @@ jobs:
 
   # 2️⃣ SCA 
   sca_snyk:
-    name: 3) SCA - Snyk Open Source 
+    name: SCA - Snyk Open Source 
     runs-on: ubuntu-latest
     needs: [sast_snyk_code]
     if: ${{ always() }}   
