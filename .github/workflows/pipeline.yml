@@ -34,6 +34,13 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --severity-threshold=medium
+      
+      - name: Upload report to Snyk Web 
+        if: always()
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor --all-projects
+  
 
   # 2️⃣ SCA 
   sca_snyk:
@@ -61,6 +68,12 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --severity-threshold=medium --all-projects
+       
+      - name: Upload report to Snyk Web 
+        if: always()
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor --all-projects  
 
   # 3️⃣ Image Security 
   image_security_snyk:
@@ -93,3 +106,8 @@ jobs:
           snyk container test app:${{ github.sha }} \
             --file=Dockerfile \
             --severity-threshold=medium
+      - name: Upload report to Snyk Web 
+        if: always()
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor --all-projects       
